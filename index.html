@@ -8,7 +8,7 @@
             type="text/css"
             href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css"
         />
-        <title>Real-time pitch extraction with Essentia.js</title>
+        <title>Audio2Midi</title>
     </head>
     <body style="background-color:  #000000!important;">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
@@ -354,20 +354,7 @@
                         const testSAB = new SharedArrayBuffer(1);
                         delete testSAB;
                     } catch (e) {
-                        if (e instanceof ReferenceError && !crossOriginIsolated) {
-                            $("#recordButton").prop("disabled", true);
-                            // redirect to cross-origin isolated SAB-capable version on Netlify
-                            window.location = "https://essentiajs-pitchmelodia.netlify.app";
-                            return;
-                        }
-
-                        // Unknown malfunction: alert user and offer alternative
-                        $("#recordButtonContainer").before(`
-                            <div class="ui message">
-                                <div class="header">Unable to run app</div>
-                                <p><a href="https://essentiajs-melspectrogram.netlify.app">Check out this version! <i class="external alternate icon"></i><a/></p>
-                                <p style="font-weight: 300;"><a href="https://github.com/MTG/essentia.js/issues">Let us know <i class="icon comment"></i></a></p>
-                            </div>`);
+                        console.log(e);
                     }
                 });
             })();
