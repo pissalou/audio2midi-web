@@ -1,0 +1,7 @@
+{
+  "name": "Node.js & npx Project",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  
+  // Runs once when the codespace is first created
+  "postCreateCommand": ""
+}
