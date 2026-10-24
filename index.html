@@ -255,7 +255,7 @@
                             sab: sab,
                         });
                     } catch(_){
-                        alert("No SharedArrayBuffer tranfer support, try another browser.");
+                        alert("Could not share SharedArrayBuffer with the audio worklet.");
                         $("#recordButton").off('click', onRecordClickHandler);
                         $("#recordButton").prop("disabled", true);
                         return;
@@ -345,17 +345,14 @@
                 }
 
                 $(document).ready(function() {
-                    // check for SharedArrayBuffer support:
+                    if (typeof SharedArrayBuffer === "undefined" || window.crossOriginIsolated !== true) {
+                        $("#recordButton").prop("disabled", true);
+                        alert("SharedArrayBuffer requires a browser with cross-origin isolation enabled.");
+                        return;
+                    }
+
                     // add event listeners to ui objects
                     $("#recordButton").on('click', onRecordClickHandler);
-
-
-                    try {
-                        const testSAB = new SharedArrayBuffer(1);
-                        delete testSAB;
-                    } catch (e) {
-                        console.log(e);
-                    }
                 });
             })();
             </script>
