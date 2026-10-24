@@ -79,7 +79,7 @@ const OPTIONS = {
       "barPercentage": 1.00,
       "categoryPercentage": 1.00,
       "gridLines": {
-        "display": true
+        "display": false
       },
       "ticks": {
         "fontSize": 11,
@@ -104,8 +104,6 @@ const OPTIONS = {
           "display": false
         },
         "ticks": {
-          "min": 50,
-          "max": 3500,
           "fontSize": 11,
           "fontColor": "#a1a1a1",
           "callback": function(...args) {
@@ -127,25 +125,25 @@ const OPTIONS = {
         "id": "pitchclass-y-axis",
         "position": "right",
         "type": "category",
+        "afterFit": function() {
+          this.width = Math.max(this.width, 84);
+        },
         "stacked": false,
         "gridLines": {
-          "display": true,
-          "color": [],
-          "z": 2,
-          "drawTicks": true,
+          "display": false
         },
         "ticks": {
           "fontSize": 11,
           "fontColor": "#a1a1a1",
-          "callback": function(value, index, values) {
-            return value;
+          "autoSkip": false,
+          "callback": function() {
+            return "";
           }
         },
         "scaleLabel": {
           "display": true,
           "fontSize": 11,
           "fontColor": "#a1a1a1",
-          "labelString": "Pitch Class"
         }
       },
       /* auxiliary axes */
@@ -158,8 +156,6 @@ const OPTIONS = {
           "display": false
         },
         "ticks": {
-          "min": 50,
-          "max": 3500,
           "fontSize": 11,
           "fontColor": "#a1a1a1",
           "callback": function(...args) {
@@ -179,6 +175,8 @@ const OPTIONS = {
 
 
 const SEMITONE_RATIO = Math.pow(2, 1/12);
+const LOWEST_PITCH_HZ = 27.5;
+const HIGHEST_PITCH_HZ = 4186.01;
 const AXES_PITCHES = getPitchScale();
 const PITCH_CLASS_COLORS = {
   'C': 'hsl(210, 25%, 50%)', 
@@ -200,22 +198,25 @@ const RMS_ARRAY = Array(30).fill(0);
 let rms_pointer = RMS_ARRAY;
 
 function getPitchScale() {
-  let freq = 440 * Math.pow(SEMITONE_RATIO, -33); // find C2 in 440 tuning
-  let semitoneScale = [];
-  
-  do {
-      semitoneScale.push(freq);
-      freq = freq * SEMITONE_RATIO;
-  } while (semitoneScale.length < 6*12) // fill up to 5 octaves
-
-  return semitoneScale;
+  const semitoneCount = Math.round(12 * Math.log2(HIGHEST_PITCH_HZ / LOWEST_PITCH_HZ));
+  return Array.from(
+    { length: semitoneCount + 1 },
+    (_, index) => LOWEST_PITCH_HZ * Math.pow(SEMITONE_RATIO, index)
+  );
 } 
+
+function freqToMidiNote(f) {
+  return Math.round(69 + 12 * Math.log2(f / 440));
+}
 
 function freqToPitchClass(f) {
   const keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const C2 = 440 * Math.pow(SEMITONE_RATIO, -33);
-  const semitonesAboveC2 = Math.round(12 * Math.log2(f / C2));
-  return keys[semitonesAboveC2 % 12];
+  return keys[freqToMidiNote(f) % 12];
+}
+
+function freqToNoteLabel(f) {
+  const midiNote = freqToMidiNote(f);
+  return `${freqToPitchClass(f)}${Math.floor(midiNote / 12) - 1}`;
 }
 
 
@@ -230,15 +231,80 @@ for (var p of AXES_PITCHES) {
 }
 DATA.yLabels.reverse();
 
-OPTIONS.scales.yAxes[0].ticks.min = AXES_PITCHES[0];
-OPTIONS.scales.yAxes[0].ticks.max = AXES_PITCHES.slice(-1)[0];
-OPTIONS.scales.yAxes[2].ticks.min = AXES_PITCHES[0];
-OPTIONS.scales.yAxes[2].ticks.max = AXES_PITCHES.slice(-1)[0];
+OPTIONS.scales.yAxes[0].ticks.min = LOWEST_PITCH_HZ;
+OPTIONS.scales.yAxes[0].ticks.max = HIGHEST_PITCH_HZ;
+OPTIONS.scales.yAxes[2].ticks.min = LOWEST_PITCH_HZ;
+OPTIONS.scales.yAxes[2].ticks.max = HIGHEST_PITCH_HZ;
 
 
-for (var n of DATA.yLabels) {
-  OPTIONS.scales.yAxes[1].gridLines.color.push(PITCH_CLASS_COLORS[n]);
-}
+Chart.pluginService.register({
+  beforeDatasetsDraw: function(chart) {
+    const pitchScale = chart.scales['main-y-axis'];
+    if (!pitchScale) return;
+
+    const chartArea = chart.chartArea;
+    const ctx = chart.ctx;
+    const notePositions = AXES_PITCHES.map(frequency => ({
+      y: pitchScale.getPixelForValue(frequency),
+      natural: /^[A-G]$/.test(freqToPitchClass(frequency))
+    })).sort((a, b) => a.y - b.y);
+
+    ctx.save();
+    notePositions.forEach((note, index) => {
+      const previous = notePositions[index - 1];
+      const next = notePositions[index + 1];
+      const top = Math.max(
+        chartArea.top,
+        previous ? (previous.y + note.y) / 2 : note.y - (next.y - note.y) / 2
+      );
+      const bottom = Math.min(
+        chartArea.bottom,
+        next ? (note.y + next.y) / 2 : note.y + (note.y - previous.y) / 2
+      );
+      if (bottom <= chartArea.top || top >= chartArea.bottom) return;
+
+      ctx.fillStyle = note.natural ? '#eee' : '#ccc';
+      ctx.fillRect(chartArea.left, top, chartArea.right - chartArea.left, bottom - top);
+    });
+    ctx.restore();
+  },
+  afterDraw: function(chart) {
+    const labelScale = chart.scales['pitchclass-y-axis'];
+    const pitchScale = chart.scales['main-y-axis'];
+    if (!labelScale || !pitchScale) return;
+
+    const ctx = chart.ctx;
+    const chartArea = chart.chartArea;
+    const fontSize = 7;
+    const naturalNotes = AXES_PITCHES
+      .map(frequency => ({
+        label: freqToNoteLabel(frequency),
+        y: pitchScale.getPixelForValue(frequency)
+      }))
+      .filter(tick =>
+        /^[A-G]\d+$/.test(tick.label) &&
+        tick.y >= chartArea.top &&
+        tick.y <= chartArea.bottom
+      )
+      .sort((a, b) => a.y - b.y);
+
+    ctx.save();
+    ctx.font = Chart.helpers.fontString(
+      fontSize,
+      labelScale.options.ticks.fontStyle || 'normal',
+      labelScale.options.ticks.fontFamily || Chart.defaults.global.defaultFontFamily
+    );
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+
+    naturalNotes.forEach(tick => {
+      ctx.fillText(tick.label, labelScale.right - 40, tick.y);
+    });
+
+    ctx.restore();
+  }
+});
 
 
 function setColorGradient(ctx) {
