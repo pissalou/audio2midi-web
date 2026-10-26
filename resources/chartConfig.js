@@ -172,6 +172,7 @@ const PITCH_CLASS_COLORS = {
 const CONFIDENCE_ARRAY = Array(30).fill(0);
 const RMS_ARRAY = Array(30).fill(0);
 let rms_pointer = RMS_ARRAY;
+const RMS_ALPHA_REFERENCE = 0.1;
 
 function midiPitchClass(pitch) {
   const keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -237,11 +238,11 @@ function setColorGradient(ctx) {
   const canvasCtx = ctx.chart.ctx;
   let gradient = canvasCtx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
   const transparency = rms_pointer;
-
   const dataSize = ctx.dataset.data.length;
   const stops = Array.from(Array(dataSize).keys()).map(i => i/dataSize); // normalized (0 - 1) gradient stops positions
   stops.forEach((s, idx) => {
-    gradient.addColorStop(s, `rgba(255, 81, 69, ${transparency[idx]})`)
+    const alpha = Math.max(0, Math.min(1, (transparency[idx] || 0) / RMS_ALPHA_REFERENCE));
+    gradient.addColorStop(s, `rgba(255, 81, 69, ${alpha})`)
   });
 
   return gradient;

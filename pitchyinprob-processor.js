@@ -77,18 +77,17 @@ class PitchProcessor extends AudioWorkletProcessor {
               onsets = essentia.vectorToArray(segmentedNotes.onset);
             }
 
-            // Each ring-buffer item is [MIDI pitch, duration, onset].
+            // Each ring-buffer item is [MIDI pitch, duration, onset, RMS].
             // A zero pitch is an explicit silence marker so the UI can end an active note.
-            if (this._audio_writer.available_write() >= 1) {
-              if (midiPitches.length > 0) {
-                if (this._audio_writer.available_write() >= midiPitches.length) {
-                  for (let i = 0; i < midiPitches.length; i++) {
-                    this._audio_writer.enqueue([midiPitches[i], durations[i], onsets[i]]);
-                  }
+            if (midiPitches.length > 0) {
+              const requiredCapacity = midiPitches.length * 4;
+              if (this._audio_writer.available_write() >= requiredCapacity) {
+                for (let i = 0; i < midiPitches.length; i++) {
+                  this._audio_writer.enqueue([midiPitches[i], durations[i], onsets[i], rms]);
                 }
-              } else {
-                this._audio_writer.enqueue([0, 0, 0]);
               }
+            } else if (this._audio_writer.available_write() >= 4) {
+              this._audio_writer.enqueue([0, 0, 0, rms]);
             }
 
             // reset variables

@@ -249,7 +249,7 @@
                 }
 
                 function setupAudioGraph() {
-                    let sab = exports.RingBuffer.getStorageForCapacity(3, Float32Array); // capacity: three float32 values [MIDI pitch, duration, onset]
+                    let sab = exports.RingBuffer.getStorageForCapacity(bufferSize, Float32Array); // capacity is measured in float32 values
                     let rb = new exports.RingBuffer(sab, Float32Array);
                     audioReader = new exports.AudioReader(rb);
 
@@ -323,7 +323,7 @@
 
                     animationId = requestAnimationFrame(animatePitch);
                     /* SAB method */
-                    let pitchBuffer = new Float32Array(3);
+                    let pitchBuffer = new Float32Array(4);
                     if (audioReader.available_read() >= 1) {
                         let read = audioReader.dequeue(pitchBuffer);
                         if (read !== 0) {
@@ -333,9 +333,8 @@
                             // console.info(elapsed);
                             CONFIDENCE_ARRAY.push(pitchBuffer[1]);
                             CONFIDENCE_ARRAY.shift();
-                            const logDuration = 1 + Math.log10(pitchBuffer[1] + Number.MIN_VALUE);
-                            rmsAccum.push(logDuration);
-                            RMS_ARRAY.push(logDuration);
+                            rmsAccum.push(pitchBuffer[3]);
+                            RMS_ARRAY.push(pitchBuffer[3]);
                             RMS_ARRAY.shift();
                             updateMidiNote(pitchBuffer[0]);
                             const chartPitch = pitchBuffer[0] > 0 ? pitchBuffer[0] : null;
