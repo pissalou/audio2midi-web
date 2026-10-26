@@ -221,8 +221,18 @@
                         .then((concatenatedCode) => {
                             audioCtx.audioWorklet.addModule(concatenatedCode)
                             .then(setupAudioGraph)
-                            .catch( function moduleLoadRejected(msg) {
-                                console.log(`There was a problem loading the AudioWorklet module code: \n ${msg}`);
+                            .catch(function moduleLoadRejected(error) {
+                                console.error("There was a problem loading the AudioWorklet module code:", error);
+                                alert("AudioWorklet module failed to load. Check the browser console for details.");
+                                if (gumStream) {
+                                    gumStream.getTracks().forEach(track => track.stop());
+                                }
+                                mic = undefined;
+                                gain = undefined;
+                                pitchNode = undefined;
+                                $("#recordButton").removeClass("recording");
+                                $("#recordButton").html('Mic &nbsp;&nbsp;<i class="microphone icon"></i>');
+                                $("#recordButton").prop("disabled", false);
                             });
                         })
                         .catch((msg) => {
@@ -239,7 +249,7 @@
                 }
 
                 function setupAudioGraph() {
-                    let sab = exports.RingBuffer.getStorageForCapacity(3, Float32Array); // capacity: three float32 values [pitch, confidence, rms]
+                    let sab = exports.RingBuffer.getStorageForCapacity(3, Float32Array); // capacity: three float32 values [MIDI pitch, duration, onset]
                     let rb = new exports.RingBuffer(sab, Float32Array);
                     audioReader = new exports.AudioReader(rb);
 
@@ -272,6 +282,41 @@
 
                 let animationStart = 0;
                 let elapsed;
+                let activeMidiNote = null;
+                const MIDI_NOTE_OFF = 0x80;
+                const MIDI_NOTE_ON = 0x90;
+                const MIDI_VELOCITY = 0x40;
+
+                function toMidiByte(value) {
+                    return Math.max(0, Math.min(127, Math.round(value)))
+                        .toString(16)
+                        .toUpperCase()
+                        .padStart(2, "0");
+                }
+
+                function printMidiMessage(status, note, velocity) {
+                    console.log(
+                        `MIDI ${status === MIDI_NOTE_ON ? "Note On" : "Note Off"}: ` +
+                        `0x${toMidiByte(status)} 0x${toMidiByte(note)} 0x${toMidiByte(velocity)}`
+                    );
+                }
+
+                function updateMidiNote(pitch) {
+                    const candidate = Number.isFinite(pitch) ? Math.round(pitch) : null;
+                    const midiNote = candidate !== null && candidate >= 1 && candidate <= 127
+                        ? candidate
+                        : null;
+                    if (midiNote === activeMidiNote) return;
+
+                    if (activeMidiNote !== null) {
+                        printMidiMessage(MIDI_NOTE_OFF, activeMidiNote, 0);
+                    }
+                    if (midiNote !== null && midiNote >= 0 && midiNote <= 127) {
+                        printMidiMessage(MIDI_NOTE_ON, midiNote, MIDI_VELOCITY);
+                    }
+                    activeMidiNote = midiNote;
+                }
+
                 // draw melspectrogram frames
                 function animatePitch(timestamp) {
                     // if (animationStart === undefined)
@@ -288,10 +333,11 @@
                             // console.info(elapsed);
                             CONFIDENCE_ARRAY.push(pitchBuffer[1]);
                             CONFIDENCE_ARRAY.shift();
-                            const logRMS = 1 + Math.log10(pitchBuffer[2] + Number.MIN_VALUE) * 0.5;
-                            rmsAccum.push(logRMS);
-                            RMS_ARRAY.push(logRMS);
+                            const logDuration = 1 + Math.log10(pitchBuffer[1] + Number.MIN_VALUE);
+                            rmsAccum.push(logDuration);
+                            RMS_ARRAY.push(logDuration);
                             RMS_ARRAY.shift();
+                            updateMidiNote(pitchBuffer[0]);
                             pitchAccum.push(pitchBuffer[0]);
                             pitchChart.data.datasets[0].data.push(pitchBuffer[0]);
                             pitchChart.data.datasets[0].data.shift();
@@ -327,15 +373,20 @@
                         gumStream.removeTrack(track);
                     });
                     
+                    if (activeMidiNote !== null) {
+                        printMidiMessage(MIDI_NOTE_OFF, activeMidiNote, 0);
+                        activeMidiNote = null;
+                    }
+
                     audioCtx.close().then(function() {
                         // manage button state
                         $("#recordButton").removeClass("recording");
                         $("#recordButton").html('Mic &nbsp;&nbsp;<i class="microphone icon"></i>');
                         
                         // disconnect nodes
-                        mic.disconnect();
-                        pitchNode.disconnect();
-                        gain.disconnect();
+                        if (mic) mic.disconnect();
+                        if (pitchNode) pitchNode.disconnect();
+                        if (gain) gain.disconnect();
                         mic = undefined; 
                         pitchNode = undefined; 
                         gain = undefined;

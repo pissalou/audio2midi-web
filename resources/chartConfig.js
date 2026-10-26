@@ -97,7 +97,7 @@ const OPTIONS = {
     }],
     "yAxes": [{
         "id": "main-y-axis",
-        "type": "logarithmic",
+        "type": "linear",
         "position": "left",
         "stacked": true,
         "gridLines": {
@@ -106,19 +106,18 @@ const OPTIONS = {
         "ticks": {
           "fontSize": 11,
           "fontColor": "#a1a1a1",
-          "callback": function(...args) {
-            const value = Chart.Ticks.formatters.logarithmic.call(this, ...args);
-            if (value.length) {
-              return Number(value).toLocaleString()
-            }
-            return value;
+          "stepSize": 12,
+          "min": 21,
+          "max": 108,
+          "callback": function(value) {
+            return Math.round(value);
           }
         },
         "scaleLabel": {
           "display": true,
           "fontSize": 11,
           "fontColor": "#a1a1a1",
-          "labelString": "Pitch (Hz)"
+          "labelString": "MIDI pitch"
         }
       },
       {
@@ -150,7 +149,7 @@ const OPTIONS = {
       {
         "id": "background-area-y-axis",
         "position": "left",
-        "type": "logarithmic",
+        "type": "linear",
         "stacked": true,
         "gridLines": {
           "display": false
@@ -158,13 +157,8 @@ const OPTIONS = {
         "ticks": {
           "fontSize": 11,
           "fontColor": "#a1a1a1",
-          "callback": function(...args) {
-            const value = Chart.Ticks.formatters.logarithmic.call(this, ...args);
-            if (value.length) {
-              return Number(value).toLocaleString()
-            }
-            return value;
-          }
+          "min": 21,
+          "max": 108
         },
         "display": false
       }
@@ -174,10 +168,12 @@ const OPTIONS = {
 
 
 
-const SEMITONE_RATIO = Math.pow(2, 1/12);
-const LOWEST_PITCH_HZ = 27.5;
-const HIGHEST_PITCH_HZ = 4186.01;
-const AXES_PITCHES = getPitchScale();
+const LOWEST_MIDI_PITCH = 21;
+const HIGHEST_MIDI_PITCH = 108;
+const AXES_PITCHES = Array.from(
+  { length: HIGHEST_MIDI_PITCH - LOWEST_MIDI_PITCH + 1 },
+  (_, index) => LOWEST_MIDI_PITCH + index
+);
 const PITCH_CLASS_COLORS = {
   'C': 'hsl(210, 25%, 50%)', 
   'C#': 'hsl(240, 25%, 50%)', 
@@ -197,26 +193,13 @@ const CONFIDENCE_ARRAY = Array(30).fill(0);
 const RMS_ARRAY = Array(30).fill(0);
 let rms_pointer = RMS_ARRAY;
 
-function getPitchScale() {
-  const semitoneCount = Math.round(12 * Math.log2(HIGHEST_PITCH_HZ / LOWEST_PITCH_HZ));
-  return Array.from(
-    { length: semitoneCount + 1 },
-    (_, index) => LOWEST_PITCH_HZ * Math.pow(SEMITONE_RATIO, index)
-  );
-} 
-
-function freqToMidiNote(f) {
-  return Math.round(69 + 12 * Math.log2(f / 440));
-}
-
-function freqToPitchClass(f) {
+function midiPitchClass(pitch) {
   const keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  return keys[freqToMidiNote(f) % 12];
+  return keys[pitch % 12];
 }
 
-function freqToNoteLabel(f) {
-  const midiNote = freqToMidiNote(f);
-  return `${freqToPitchClass(f)}${Math.floor(midiNote / 12) - 1}`;
+function midiNoteLabel(pitch) {
+  return `${midiPitchClass(pitch)}${Math.floor(pitch / 12) - 1}`;
 }
 
 
@@ -227,14 +210,14 @@ for (var i = 0; i < 30; i++) DATA.datasets[1].data.push(AXES_PITCHES[0]);
 for (var i = 0; i < 30; i++) DATA.datasets[2].data.push(AXES_PITCHES.slice(-1)[0]);
 
 for (var p of AXES_PITCHES) {
-    DATA.yLabels.push(freqToPitchClass(p));
+    DATA.yLabels.push(midiPitchClass(p));
 }
 DATA.yLabels.reverse();
 
-OPTIONS.scales.yAxes[0].ticks.min = LOWEST_PITCH_HZ;
-OPTIONS.scales.yAxes[0].ticks.max = HIGHEST_PITCH_HZ;
-OPTIONS.scales.yAxes[2].ticks.min = LOWEST_PITCH_HZ;
-OPTIONS.scales.yAxes[2].ticks.max = HIGHEST_PITCH_HZ;
+OPTIONS.scales.yAxes[0].ticks.min = LOWEST_MIDI_PITCH;
+OPTIONS.scales.yAxes[0].ticks.max = HIGHEST_MIDI_PITCH;
+OPTIONS.scales.yAxes[2].ticks.min = LOWEST_MIDI_PITCH;
+OPTIONS.scales.yAxes[2].ticks.max = HIGHEST_MIDI_PITCH;
 
 
 Chart.pluginService.register({
@@ -246,7 +229,7 @@ Chart.pluginService.register({
     const ctx = chart.ctx;
     const notePositions = AXES_PITCHES.map(frequency => ({
       y: pitchScale.getPixelForValue(frequency),
-      natural: /^[A-G]$/.test(freqToPitchClass(frequency))
+      natural: /^[A-G]$/.test(midiPitchClass(frequency))
     })).sort((a, b) => a.y - b.y);
 
     ctx.save();
@@ -278,7 +261,7 @@ Chart.pluginService.register({
     const fontSize = 7;
     const naturalNotes = AXES_PITCHES
       .map(frequency => ({
-        label: freqToNoteLabel(frequency),
+        label: midiNoteLabel(frequency),
         y: pitchScale.getPixelForValue(frequency)
       }))
       .filter(tick =>

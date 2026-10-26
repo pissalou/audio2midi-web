@@ -57,19 +57,40 @@ class PitchProcessor extends AudioWorkletProcessor {
               10, 3, this._frameSize, false, 0.8, this._hopSize, 1, 40, this._highestFreq, 100, this._lowestFreq, 20, 0.9, 0.9, 27.5625, this._lowestFreq, this._sampleRate, 100
             );
             const pitchFrames = essentia.vectorToArray(algoOutput.pitch);
-            const confidenceFrames = essentia.vectorToArray(algoOutput.pitchConfidence);
 
-            // average frame-wise pitches in pitch before writing to SAB
-            const numVoicedFrames = pitchFrames.filter(p => p > 0).length;
-            // const numFrames = pitchFrames.length;
-            const meanPitch = pitchFrames.reduce((acc, val) => acc + val, 0) / numVoicedFrames;
-            const meanConfidence = confidenceFrames.reduce((acc, val) => acc + val, 0) / numVoicedFrames;
-            // console.info("audio: ", meanPitch, meanConfidence, rms);
-            // write to SAB using AudioWriter object so that pitch output can be accesed from the main UI thread
-            if (this._audio_writer.available_write() >= 1) {
-              this._audio_writer.enqueue([meanPitch, meanConfidence, rms]);
+            let midiPitches = [];
+            let durations = [];
+            let onsets = [];
+            if (rms >= this._rmsThreshold) {
+              const segmentedNotes = this._essentia.PitchContourSegmentation(
+                essentia.arrayToVector(pitchFrames),
+                accumDataVector,
+                this._hopSize,
+                0.1,
+                60,
+                -2,
+                this._sampleRate,
+                440
+              );
+              midiPitches = essentia.vectorToArray(segmentedNotes.MIDIpitch);
+              durations = essentia.vectorToArray(segmentedNotes.duration);
+              onsets = essentia.vectorToArray(segmentedNotes.onset);
             }
-            
+
+            // Each ring-buffer item is [MIDI pitch, duration, onset].
+            // A zero pitch is an explicit silence marker so the UI can end an active note.
+            if (this._audio_writer.available_write() >= 1) {
+              if (midiPitches.length > 0) {
+                if (this._audio_writer.available_write() >= midiPitches.length) {
+                  for (let i = 0; i < midiPitches.length; i++) {
+                    this._audio_writer.enqueue([midiPitches[i], durations[i], onsets[i]]);
+                  }
+                }
+              } else {
+                this._audio_writer.enqueue([0, 0, 0]);
+              }
+            }
+
             // reset variables
             this._accumData = [new Float32Array(this._bufferSize)];
         }
