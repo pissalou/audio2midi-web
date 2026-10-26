@@ -164,7 +164,7 @@
                 function resetChartData() {
                     rms_pointer = RMS_ARRAY;
                     pitchChart.data.labels = getTimeLabels(30);
-                    pitchChart.data.datasets[0].data = Array(30).fill(100);
+                    pitchChart.data.datasets[0].data = Array(30).fill(null);
                     pitchChart.data.datasets[1].data = Array(30).fill(AXES_PITCHES[0]);
                     pitchChart.data.datasets[2].data = Array(30).fill(AXES_PITCHES.slice(-1)[0]);
                     pitchChart.update();
@@ -317,7 +317,7 @@
                     activeMidiNote = midiNote;
                 }
 
-                // draw melspectrogram frames
+                // Update the pitch chart with incoming frames.
                 function animatePitch(timestamp) {
                     // if (animationStart === undefined)
 
@@ -338,8 +338,9 @@
                             RMS_ARRAY.push(logDuration);
                             RMS_ARRAY.shift();
                             updateMidiNote(pitchBuffer[0]);
-                            pitchAccum.push(pitchBuffer[0]);
-                            pitchChart.data.datasets[0].data.push(pitchBuffer[0]);
+                            const chartPitch = pitchBuffer[0] > 0 ? pitchBuffer[0] : null;
+                            pitchAccum.push(chartPitch);
+                            pitchChart.data.datasets[0].data.push(chartPitch);
                             pitchChart.data.datasets[0].data.shift();
 
                             // console.info("before chart update");

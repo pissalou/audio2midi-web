@@ -185,7 +185,7 @@ function midiNoteLabel(pitch) {
 
 // fill in data, labels, and setup axes
 
-for (var i = 0; i < 30; i++) DATA.datasets[0].data.push(100);
+for (var i = 0; i < 30; i++) DATA.datasets[0].data.push(null);
 for (var i = 0; i < 30; i++) DATA.datasets[1].data.push(AXES_PITCHES[0]);
 for (var i = 0; i < 30; i++) DATA.datasets[2].data.push(AXES_PITCHES.slice(-1)[0]);
 
