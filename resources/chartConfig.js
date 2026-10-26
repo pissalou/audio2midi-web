@@ -9,7 +9,6 @@
 // }
 const DATA = {
   "labels": [],
-  "yLabels": [],
   "datasets": [{
     "data": [],
     "fill": false,
@@ -106,43 +105,24 @@ const OPTIONS = {
         "ticks": {
           "fontSize": 11,
           "fontColor": "#a1a1a1",
-          "stepSize": 12,
+          "stepSize": 1,
           "min": 21,
           "max": 108,
-          "callback": function(value) {
-            return Math.round(value);
-          }
-        },
-        "scaleLabel": {
-          "display": true,
-          "fontSize": 11,
-          "fontColor": "#a1a1a1",
-          "labelString": "MIDI pitch"
-        }
-      },
-      {
-        "id": "pitchclass-y-axis",
-        "position": "right",
-        "type": "category",
-        "afterFit": function() {
-          this.width = Math.max(this.width, 84);
-        },
-        "stacked": false,
-        "gridLines": {
-          "display": false
-        },
-        "ticks": {
-          "fontSize": 11,
-          "fontColor": "#a1a1a1",
           "autoSkip": false,
-          "callback": function() {
-            return "";
+          "callback": function(value) {
+            const pitch = Math.round(value);
+            const note = midiPitchClass(pitch);
+            const octave = Math.floor(pitch / 12) - 1;
+            return note === 'C' && octave >= 1 && octave <= 7
+              ? midiNoteLabel(pitch)
+              : '';
           }
         },
         "scaleLabel": {
           "display": true,
           "fontSize": 11,
           "fontColor": "#a1a1a1",
+          "labelString": "MIDI note"
         }
       },
       /* auxiliary axes */
@@ -209,15 +189,10 @@ for (var i = 0; i < 30; i++) DATA.datasets[0].data.push(100);
 for (var i = 0; i < 30; i++) DATA.datasets[1].data.push(AXES_PITCHES[0]);
 for (var i = 0; i < 30; i++) DATA.datasets[2].data.push(AXES_PITCHES.slice(-1)[0]);
 
-for (var p of AXES_PITCHES) {
-    DATA.yLabels.push(midiPitchClass(p));
-}
-DATA.yLabels.reverse();
-
 OPTIONS.scales.yAxes[0].ticks.min = LOWEST_MIDI_PITCH;
 OPTIONS.scales.yAxes[0].ticks.max = HIGHEST_MIDI_PITCH;
-OPTIONS.scales.yAxes[2].ticks.min = LOWEST_MIDI_PITCH;
-OPTIONS.scales.yAxes[2].ticks.max = HIGHEST_MIDI_PITCH;
+OPTIONS.scales.yAxes[1].ticks.min = LOWEST_MIDI_PITCH;
+OPTIONS.scales.yAxes[1].ticks.max = HIGHEST_MIDI_PITCH;
 
 
 Chart.pluginService.register({
@@ -249,42 +224,6 @@ Chart.pluginService.register({
       ctx.fillStyle = note.natural ? '#eee' : '#ccc';
       ctx.fillRect(chartArea.left, top, chartArea.right - chartArea.left, bottom - top);
     });
-    ctx.restore();
-  },
-  afterDraw: function(chart) {
-    const labelScale = chart.scales['pitchclass-y-axis'];
-    const pitchScale = chart.scales['main-y-axis'];
-    if (!labelScale || !pitchScale) return;
-
-    const ctx = chart.ctx;
-    const chartArea = chart.chartArea;
-    const fontSize = 7;
-    const naturalNotes = AXES_PITCHES
-      .map(frequency => ({
-        label: midiNoteLabel(frequency),
-        y: pitchScale.getPixelForValue(frequency)
-      }))
-      .filter(tick =>
-        /^[A-G]\d+$/.test(tick.label) &&
-        tick.y >= chartArea.top &&
-        tick.y <= chartArea.bottom
-      )
-      .sort((a, b) => a.y - b.y);
-
-    ctx.save();
-    ctx.font = Chart.helpers.fontString(
-      fontSize,
-      labelScale.options.ticks.fontStyle || 'normal',
-      labelScale.options.ticks.fontFamily || Chart.defaults.global.defaultFontFamily
-    );
-    ctx.fillStyle = '#000000';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-
-    naturalNotes.forEach(tick => {
-      ctx.fillText(tick.label, labelScale.right - 40, tick.y);
-    });
-
     ctx.restore();
   }
 });
