@@ -11,8 +11,6 @@
         <title>Audio2Midi</title>
     </head>
     <body style="background-color:  #000000!important;">
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js" integrity="sha512-d9xgZrVZpmmQlfonhQUvTR7lMPtO7NkZMkA0ABN3PHCbKA5nqylQ/yWlFAyY6hYgdF1Qh6nYiuADWwKB4C2WSw==" crossorigin="anonymous"></script>
         
         <div class="ui main_wrapper landing-image">
@@ -131,6 +129,7 @@
                 // Visualization objects
                 let animationId;
                 let canvas = document.getElementById("axesDiv");
+                let recordButton = document.getElementById("recordButton");
                 let pitchAccum = [];
                 let rmsAccum = [];
                 let refreshRate = bufferSize / audioCtx.sampleRate * 1000;
@@ -171,9 +170,9 @@
                 }
 
                 function onRecordClickHandler() {
-                    let recording = $(this).hasClass("recording");
+                    let recording = recordButton.classList.contains("recording");
                     if (!recording) {
-                        $(this).prop("disabled", true);
+                        recordButton.disabled = true;
                         
                         resetChartData();
                         // start microphone stream using getUserMedia and runs the feature extraction
@@ -230,9 +229,9 @@
                                 mic = undefined;
                                 gain = undefined;
                                 pitchNode = undefined;
-                                $("#recordButton").removeClass("recording");
-                                $("#recordButton").html('Mic &nbsp;&nbsp;<i class="microphone icon"></i>');
-                                $("#recordButton").prop("disabled", false);
+                                recordButton.classList.remove("recording");
+                                recordButton.innerHTML = 'Mic &nbsp;&nbsp;<i class="microphone icon"></i>';
+                                recordButton.disabled = false;
                             });
                         })
                         .catch((msg) => {
@@ -240,9 +239,9 @@
                         })
 
                         // set button to stop
-                        $("#recordButton").addClass("recording");
-                        $("#recordButton").html('Stop &nbsp;&nbsp;<i class="stop icon"></i>');
-                        $("#recordButton").prop("disabled", false);
+                        recordButton.classList.add("recording");
+                        recordButton.innerHTML = 'Stop &nbsp;&nbsp;<i class="stop icon"></i>';
+                        recordButton.disabled = false;
                     } else {
                         throw "Mic stream not active";
                     }
@@ -266,8 +265,8 @@
                         });
                     } catch(_){
                         alert("Could not share SharedArrayBuffer with the audio worklet.");
-                        $("#recordButton").off('click', onRecordClickHandler);
-                        $("#recordButton").prop("disabled", true);
+                        recordButton.removeEventListener('click', onRecordClickHandler);
+                        recordButton.disabled = true;
                         return;
                     }
 
@@ -380,8 +379,8 @@
 
                     audioCtx.close().then(function() {
                         // manage button state
-                        $("#recordButton").removeClass("recording");
-                        $("#recordButton").html('Mic &nbsp;&nbsp;<i class="microphone icon"></i>');
+                        recordButton.classList.remove("recording");
+                        recordButton.innerHTML = 'Mic &nbsp;&nbsp;<i class="microphone icon"></i>';
                         
                         // disconnect nodes
                         if (mic) mic.disconnect();
@@ -395,15 +394,15 @@
                     });
                 }
 
-                $(document).ready(function() {
+                document.addEventListener("DOMContentLoaded", function() {
                     if (typeof SharedArrayBuffer === "undefined" || window.crossOriginIsolated !== true) {
-                        $("#recordButton").prop("disabled", true);
+                        recordButton.disabled = true;
                         alert("SharedArrayBuffer requires a browser with cross-origin isolation enabled.");
                         return;
                     }
 
                     // add event listeners to ui objects
-                    $("#recordButton").on('click', onRecordClickHandler);
+                    recordButton.addEventListener('click', onRecordClickHandler);
                 });
             })();
             </script>
